@@ -29,11 +29,22 @@ metadata {
         capability "Configuration"
         capability "Health Check"
         
+        // Standard Attributes (for the capabilities above):
+        attribute "switch", "enum", ["on", "off"]
+        attribute "level", "number"
+        attribute "hue", "number"
+        attribute "saturation", "number"
+		attribute "color", "string"
+        
         (1..6).each { n ->
 			attribute "switch$n", "enum", ["on", "off"]
 			command "on$n"
 			command "off$n"
 		}
+        
+        // Keep track of implied HSV psuedo level
+        attribute "psuedoLevel", "number"
+        attribute "psuedoColor", "string"
         
         command "reset"
         command "setProgram"
@@ -81,9 +92,9 @@ metadata {
 			}
         }
 
-		standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
-			state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
-		}
+	standardTile("refresh", "device.switch", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
+		state "default", label:"", action:"refresh.refresh", icon:"st.secondary.refresh"
+	}
        standardTile("configure", "device.needUpdate", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
             state "NO" , label:'', action:"configuration.configure", icon:"http://cdn.device-icons.smartthings.com/secondary/configure@2x.png"
             state "YES", label:'', action:"configuration.configure", icon:"https://github.com/erocm123/SmartThingsPublic/raw/master/devicetypes/erocm123/qubino-flush-1d-relay.src/configure@2x.png"
@@ -152,10 +163,10 @@ metadata {
         
         (1..6).each { n ->
 			standardTile("switch$n", "switch$n", canChangeIcon: true, width: 2, height: 2, decoration: "flat") {
-				state "off", label: "Program\n$n", action: "on$n", icon: "st.switches.switch.off", backgroundColor: "#cccccc"
-                state "on", label: "Program\n$n", action: "off$n", icon: "st.switches.switch.on", backgroundColor: "#00a0dc"
+			state "off", label: "Program\n$n", action: "on$n", icon: "st.switches.switch.off", backgroundColor: "#cccccc"
+        		state "on", label: "Program\n$n", action: "off$n", icon: "st.switches.switch.on", backgroundColor: "#00a0dc"
 			}
-		}
+	}
     }
 
 	main(["switch"])
@@ -246,6 +257,7 @@ def parse(description) {
     def map = [:]
     def events = []
     def cmds = []
+    log.debug "description $description"
     
     if(description == "updated") return
     def descMap = parseDescriptionAsMap(description)
@@ -371,9 +383,11 @@ private getScaledColor(color) {
    def myblue = rgb[2]
    return rgbToHex([r:myred, g:mygreen, b:myblue])
 }
-
 def on() {
-	log.debug "on()"
+	on(null)
+}
+def on(var) {
+	log.debug "on($var)"
     getAction("/on?transition=$transition")
 }
 
@@ -408,19 +422,29 @@ def getWhite(value) {
 	def level = Math.min(value as Integer, 99)    
     level = 255 * level/99 as Integer
 	log.debug "level: ${level}"
-	return hex(level)
+	return hex
 }
 def setColor(value) {
     log.debug "setColor being called with ${value}"
     def uri
     def validValue = true
-    
-    if ((value.saturation >= 0) && (value.hue >= 0)) {
-        def hue = (value.hue != null) ? value.hue : 13
-		def saturation = (value.saturation != null) ? value.saturation : 13
-		def rgb = huesatToRGB(hue as Integer, saturation as Integer)
+    if((state.psuedoColor == null) && (device.currentValue("color") != null)){
+    	state.psuedoColor = device.currentValue("color").substring(1)
+    }
+    if ((value.hex == null) && (value.saturation >= 0) && (value.hue >= 0)) {
+        def hue = (value.hue != null) ? value.hue : 0
+	def saturation = (value.saturation != null) ? value.saturation : 50
+        def level = (value.level != null) ? value.level : 1.0
+        sendEvent(name: "hue", value: hue)
+        sendEvent(name: "saturation", value: saturation)
+	def rgb = huesatToRGB(hue as Float, saturation as Float, level as Float)
+        log.debug "got RGB -> ${rgb} at level ${level}"
         value.hex = rgbToHex([r:rgb[0], g:rgb[1], b:rgb[2]])
-    } 
+        state.psuedoColor = value.hex
+    }else if(value.hex != null){
+    	value.hex = value.hex.replaceAll("#", "")
+    }
+
     
     if (value.hue == 23 && value.saturation == 56) {
        log.debug "setting color Soft White"
@@ -453,17 +477,20 @@ def setColor(value) {
        state.previousColor = "${whiteLevel}"
     }
 	else if (value.hex) {
-       log.debug "setting color with hex"
+       value.hex = value.hex.replaceAll("#", "")
+       log.debug "setting color with hex $value.hex"
        if (!value.hex ==~ /^\#([A-Fa-f0-9]){6}$/) {
            log.debug "$value.hex is not valid"
            validValue = false
        } else {
            def rgb = value.hex.findAll(/[0-9a-fA-F]{2}/).collect { Integer.parseInt(it, 16) }
-           def myred = rgb[0] < 40 ? 0 : rgb[0]
-           def mygreen = rgb[1] < 40 ? 0 : rgb[1]
-           def myblue = rgb[2] < 40 ? 0 : rgb[2]
-           def dimmedColor = getDimmedColor(rgbToHex([r:myred, g:mygreen, b:myblue]))
+           def myred = rgb[0]
+           def mygreen = rgb[1]
+           def myblue = rgb[2]
+           state.psuedoColor = value.hex
+	   def dimmedColor = getDimmedColor(rgbToHex([r:myred, g:mygreen, b:myblue]))
            uri = "/rgb?value=${dimmedColor}"
+           log.debug "$uri"
        }
     }
     else if (value.white) {
@@ -482,12 +509,15 @@ def setColor(value) {
               actions.push(setWhite2Level(value.aLevel))
               skipColor = true
            }
-        if (skipColor == false) {
-        log.debug state.previousRGB
-           // if the device is currently on, scale the current RGB values; otherwise scale the previous setting
-           uri = "/rgb?value=${getDimmedColor(device.latestValue("switch") == "on" ? device.currentValue("color").substring(1) : state.previousRGB)}"
-           actions.push(getAction("$uri&channels=$channels&transition=$transition"))
-        }
+           if (skipColor == false) {
+              log.debug "previous RGB: ${state.previousRGB}"
+              log.debug "psuedoRGB: ${state.psuedoColor}"
+              // if the device is currently on, scale the current RGB values; otherwise scale the previous setting
+            
+              uri = "/rgb?value=${getDimmedColor(device.latestValue("switch") == "on" ? state.psuedoColor : state.previousRGB)}"
+              log.debug "$uri"
+              actions.push(getAction("$uri&channels=$channels&transition=$transition"))
+           }
         } else {
            // Handle white channel dimmers if they're on or were not previously off (excluding power-off command)
            if (device.currentValue("white1") == "on" || state.previousW1 != "00")
@@ -495,14 +525,20 @@ def setColor(value) {
            if (device.currentValue("white2") == "on" || state.previousW2 != "00")
               actions.push(setWhite2Level(value.aLevel))
         
+        	log.debug "previous RGB: ${state.previousRGB}"
+            log.debug "psuedoRGB: ${state.psuedoColor}"
            // if the device is currently on, scale the current RGB values; otherwise scale the previous setting
-           uri = "/rgb?value=${getDimmedColor(device.latestValue("switch") == "on" ? device.currentValue("color").substring(1) : state.previousRGB)}"
+           uri = "/rgb?value=${getDimmedColor(device.latestValue("switch") == "on" ? state.psuedoColor : state.previousRGB)}"
+           log.debug "$uri"
            actions.push(getAction("$uri&channels=$channels&transition=$transition"))
         }
+        
         return actions
     }
     else {
        // A valid color was not chosen. Setting to white
+       log.debug "no valid color found. setting to white"
+       log.debug "value is: ${value}"
        uri = "/w1?value=ff"
     }
     
@@ -512,12 +548,14 @@ def setColor(value) {
 
 private getDimmedColor(color, level) {
    if(color.size() > 2){
-      def scaledColor = getScaledColor(color)
-      def rgb = scaledColor.findAll(/[0-9a-fA-F]{2}/).collect { Integer.parseInt(it, 16) }
-    
-      def r = hex(rgb[0] * (level.toInteger()/100))
-      def g = hex(rgb[1] * (level.toInteger()/100))
-      def b = hex(rgb[2] * (level.toInteger()/100))
+      //def scaledColor = getScaledColor(color)
+      def rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { Integer.parseInt(it, 16) }
+      log.debug "using RBG: ${rgb}"
+      def hsv = rgbToHSV([red: rgb[0], green: rgb[1], blue: rgb[2]])
+      def nrgb = huesatToRGB(hsv.hue as Float, hsv.saturation as Float, (level/100f) as Float)
+      def r = hex(nrgb[0])
+      def g = hex(nrgb[1])
+      def b = hex(nrgb[2])
 
       return "${r + g + b}"
    }else{
@@ -575,21 +613,78 @@ def hexToRgb(colorHex) {
 }
 
 def huesatToRGB(float hue, float sat) {
-	while(hue >= 100) hue -= 100
-	int h = (int)(hue / 100 * 6)
-	float f = hue / 100 * 6 - h
-	int p = Math.round(255 * (1 - (sat / 100)))
-	int q = Math.round(255 * (1 - (sat / 100) * f))
-	int t = Math.round(255 * (1 - (sat / 100) * (1 - f)))
-	switch (h) {
-		case 0: return [255, t, p]
-		case 1: return [q, 255, p]
-		case 2: return [p, 255, t]
-		case 3: return [p, q, 255]
-		case 4: return [t, p, 255]
-		case 5: return [255, p, q]
-	}
+	huesatToRGB(hue, sat, 1.0)
 }
+def huesatToRGB(float hue, float sat, float level) {
+	if (hue <= 100) {
+		hue = hue * 3.6
+    }
+    sat = sat / 100
+    float v = level
+    float c = v * sat
+    float x = c * (1 - Math.abs(((hue/60)%2) - 1))
+    float m = v - c
+    int mod_h = (int)(hue / 60)
+    int cm = Math.round((c+m) * 255)
+    int xm = Math.round((x+m) * 255)
+    int zm = Math.round((0+m) * 255)
+    if(cm < 0){ cm = 0 }
+    if(cm > 255){ cm = 255 }
+    if(xm < 0){ xm = 0 }
+    if(xm > 255){ xm = 255 }
+    if(zm < 0){ zm = 0 }
+    if(zm > 255){ zm = 255 }
+    switch(mod_h) {
+    	case 0: return [cm, xm, zm]
+       	case 1: return [xm, cm, zm]
+        case 2: return [zm, cm, xm]
+        case 3: return [zm, xm, cm]
+        case 4: return [xm, zm, cm]
+        case 5: return [cm, zm, xm]
+	}   	
+}
+
+/**
+ *  rgbwToHSV(colorMap)
+ *
+ *  Adds hue, saturation, level (value/brightness) keys to a colorMap containing red, green, and blue keys.
+ **/
+private rgbToHSV(value) {
+    log.debug "${device.displayName}: rgbToHSV(): Translating value: ${value}"
+
+    if (value.red != null && value.green != null && value.blue != null) {
+
+        float r = value.red / 255f
+        float g = value.green / 255f
+        float b = value.blue / 255f
+        float max = [r, g, b].max()
+        float min = [r, g, b].min()
+        float delta = max - min
+
+        float h,s,v = 0
+
+        if (delta > 0) {
+            if (r == max) {
+                h = ((g - b) / delta) * 60
+            } else if (g == max) {
+                h = (2 + (b - r) / delta) * 60
+            } else {
+                h = (4 + (r - g) / delta) * 60
+            }
+        }
+        if (max != 0){
+        	s = delta / max
+        } else {
+        	s = 0
+        }
+		log.debug "$h $s $v"
+        return [ hue: (h/3.6), saturation: s * 100, level: Math.round(v * 100) ] // hue and sat are not rounded.
+    }
+    else {
+        log.error "${device.displayName}: rgbToHSV(): Cannot obtain color information from value: ${value}"
+    }
+}
+
 
 private hex(value, width=2) {
 	def s = new BigInteger(Math.round(value).toString()).toString(16)
@@ -874,7 +969,7 @@ def color = ""
     color = "ff"
     break;
     case "W2":
-    color = "ff"
+    color= "ff"
     break;
     case "Blue":
     color = "0000ff"
