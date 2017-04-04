@@ -851,7 +851,7 @@ private getAdjustedTemp(value) {
     value = Math.round((value as Double) * 100) / 100
 
 	if (settings."201") {
-	   return value =  value + Math.round(settings."201" * 100) /100
+	   return value =  value + Math.round(settings."201" * 10) /100
 	} else {
        return value
     }
@@ -1032,12 +1032,13 @@ Note:
 The unit of interval time is in seconds. Minimum interval time is 30 seconds when USB powered and 240 seconds (4 minutes) when battery powered.
     </Help>
   </Value>
-  <Value type="decimal" byteSize="1" index="201" label="Temperature offset" min="*" max="*" value="">
+  <Value type="byte" byteSize="1" index="201" label="Temperature offset" min="-100" max="100" value="">
     <Help>
 Range: None
 Default: 0
-Note: 
-1. The calibration value = standard value - measure value.
+Note:
+1. The value contains one decimal point. E.g. if the value is set to 20, the calibration value is 2.0
+2. The calibration value = standard value - measure value.
 E.g. If measure value =85.3F and the standard value = 83.2F, so the calibration value = 83.2F - 85.3F = -2.1F.
 If the measure value =60.1F and the standard value = 63.2F, so the calibration value = 63.2F - 60.1℃ = 3.1F. 
     </Help>
