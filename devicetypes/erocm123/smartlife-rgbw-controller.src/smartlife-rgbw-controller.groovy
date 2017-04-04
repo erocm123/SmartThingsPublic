@@ -896,7 +896,10 @@ def setRedLevel(value) {
         rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
     }
     rgb[0] = level
-    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
+    def r = rgb[0]
+    def g = rgb[1]
+    def b = rgb[2]
+    state.psuedoColor = "${r + g + b}"
     getAction("/r?value=$level&channels=$channels&transition=$transition")
 }
 
@@ -922,7 +925,10 @@ def setGreenLevel(value) {
         rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
     }
     rgb[1] = level
-    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
+    def r = rgb[0]
+    def g = rgb[1]
+    def b = rgb[2]
+    state.psuedoColor = "${r + g + b}"
     getAction("/g?value=$level&channels=$channels&transition=$transition")
 }
 
@@ -948,7 +954,10 @@ def setBlueLevel(value) {
         rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
     }
     rgb[2] = level
-    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
+    def r = rgb[0]
+    def g = rgb[1]
+    def b = rgb[2]
+    state.psuedoColor = "${r + g + b}"
     getAction("/b?value=$level&channels=$channels&transition=$transition")
 }
 
