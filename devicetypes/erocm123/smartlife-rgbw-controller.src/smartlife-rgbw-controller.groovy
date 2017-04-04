@@ -29,12 +29,6 @@ metadata {
         capability "Configuration"
         capability "Health Check"
 
-        // Standard Attributes (for the capabilities above):
-        attribute "switch", "enum", ["on", "off"]
-        attribute "level", "number"
-        attribute "hue", "number"
-        attribute "saturation", "number"
-        attribute "color", "string"
 
         (1..6).each { n ->
             attribute "switch$n", "enum", ["on", "off"]
@@ -383,11 +377,6 @@ private getScaledColor(color) {
 }
 
 def on() {
-    on(null)
-}
-
-def on(var) {
-    log.debug "on($var)"
     getAction("/on?transition=$transition")
 }
 
@@ -887,12 +876,12 @@ def hex2int(value) {
 
 def redOn() {
     log.debug "redOn()"
-    getAction("/r?value=ff&channels=$channels&transition=$transition")
+    setRedLevel(100)
 }
 
 def redOff() {
     log.debug "redOff()"
-    getAction("/r?value=00&channels=$channels&transition=$transition")
+    setRedLevel(0)
 }
 
 def setRedLevel(value) {
@@ -901,17 +890,24 @@ def setRedLevel(value) {
     level = 255 * level / 99 as Integer
     log.debug "level: ${level}"
     level = hex(level)
+    def color = state.psuedoColor
+    def rgb = [0, 0, 0]
+    if(color != null) {
+        rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
+    }
+    rgb[0] = level
+    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
     getAction("/r?value=$level&channels=$channels&transition=$transition")
 }
 
 def greenOn() {
     log.debug "greenOn()"
-    getAction("/g?value=ff&channels=$channels&transition=$transition")
+    setGreenLevel(100)
 }
 
 def greenOff() {
     log.debug "greenOff()"
-    getAction("/g?value=00&channels=$channels&transition=$transition")
+    setGreenLevel(0)
 }
 
 def setGreenLevel(value) {
@@ -920,17 +916,24 @@ def setGreenLevel(value) {
     level = 255 * level / 99 as Integer
     log.debug "level: ${level}"
     level = hex(level)
+    def color = state.psuedoColor
+    def rgb = [0, 0, 0]
+    if(color != null) {
+        rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
+    }
+    rgb[1] = level
+    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
     getAction("/g?value=$level&channels=$channels&transition=$transition")
 }
 
 def blueOn() {
     log.debug "blueOn()"
-    getAction("/b?value=ff&channels=$channels&transition=$transition")
+    setBlueLevel(100)
 }
 
 def blueOff() {
     log.debug "blueOff()"
-    getAction("/b?value=00&channels=$channels&transition=$transition")
+    setBlueLevel(0)
 }
 
 def setBlueLevel(value) {
@@ -939,6 +942,13 @@ def setBlueLevel(value) {
     level = 255 * level / 99 as Integer
     log.debug "level: ${level}"
     level = hex(level)
+    def color = state.psuedoColor
+    def rgb = [0, 0, 0]
+    if(color != null) {
+        rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { it }
+    }
+    rgb[2] = level
+    state.psuedoColor = ${rgb[0] + rgb[1] + rgb[2]}
     getAction("/b?value=$level&channels=$channels&transition=$transition")
 }
 
