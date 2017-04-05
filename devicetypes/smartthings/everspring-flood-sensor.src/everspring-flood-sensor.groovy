@@ -17,6 +17,7 @@ metadata {
 		capability "Configuration"
 		capability "Sensor"
 		capability "Battery"
+		capability "Health Check"
 
 		fingerprint deviceId: "0xA102", inClusters: "0x86,0x72,0x85,0x84,0x80,0x70,0x9C,0x20,0x71"
 	}
@@ -33,7 +34,7 @@ metadata {
 		multiAttributeTile(name:"water", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.water", key: "PRIMARY_CONTROL") {
 				attributeState "dry", icon:"st.alarm.water.dry", backgroundColor:"#ffffff"
-				attributeState "wet", icon:"st.alarm.water.wet", backgroundColor:"#53a7c0"
+				attributeState "wet", icon:"st.alarm.water.wet", backgroundColor:"#00a0dc"
 			}
 		}
 		valueTile("battery", "device.battery", decoration: "flat", inactiveLabel: false, width: 2, height: 2) {
@@ -138,6 +139,8 @@ def zwaveEvent(physicalgraph.zwave.Command cmd)
 
 def configure()
 {
+	// Device wakes up every 4 hours, this interval allows us to miss one wakeup notification before marking offline
+	sendEvent(name: "checkInterval", value: 8 * 60 * 60 + 2 * 60, displayed: false, data: [protocol: "zwave", hubHardwareId: device.hub.hardwareID])
 	if (!device.currentState("battery")) {
 		sendEvent(name: "battery", value:100, unit:"%", descriptionText:"(Default battery event)", displayed:false)
 	}
