@@ -113,9 +113,11 @@ private def logging(message, level) {
 }
 
 def parse(description) {
+	//log.debug "Parsing: ${description}"
     def events = []
     def descMap = parseDescriptionAsMap(description)
     def body
+    def ipSaved = device.currentValue('ip')
     def ipNew = getDataValue("ip")
     def ipSettings = settings.ip
 
@@ -337,6 +339,7 @@ def generate_preferences(configuration_model)
             case ["text"]:
                 input "${it.@index}", "texts",
                     title:"${it.@label}\n" + "${it.Help}",
+                    defaultValue: "${it.@value}",
                     displayDuringSetup: "${it.@displayDuringSetup}"
             break
             case "decimal":
@@ -361,10 +364,11 @@ def generate_preferences(configuration_model)
 
 def update_current_properties(cmd)
 {
-    //log.debug "update_current_properties()"
+	log.debug "update_current_properties()"
 
     def currentProperties = state.currentProperties ?: [:]
     currentProperties."${cmd.name}" = cmd.value
+  	log.debug "${cmd.name}  -> ${cmd.value}"
     
     if (settings."${cmd.name}" != null)
     {
@@ -423,7 +427,7 @@ def configuration_model()
 {
 '''
 <configuration>
-<Value type="text" byteSize="1" index="ip" label="IP" min="" max="" value="" setting_type="preference" fw="">
+<Value type="text" byteSize="1" index="ip" label="IP" min="" max="" value="0.0.0.0" setting_type="preference" fw="">
 <Help>
 </Help>
 </Value>
