@@ -113,11 +113,10 @@ private def logging(message, level) {
 }
 
 def parse(description) {
-	//log.debug "Parsing: ${description}"
+	//log.debug "Parse"
     def events = []
     def descMap = parseDescriptionAsMap(description)
     def body
-    def ipSaved = device.currentValue('ip')
     def ipNew = getDataValue("ip")
     def ipSettings = settings.ip
 
@@ -364,11 +363,10 @@ def generate_preferences(configuration_model)
 
 def update_current_properties(cmd)
 {
-	log.debug "update_current_properties()"
+	//log.debug "update_current_properties()"
 
     def currentProperties = state.currentProperties ?: [:]
     currentProperties."${cmd.name}" = cmd.value
-  	log.debug "${cmd.name}  -> ${cmd.value}"
     
     if (settings."${cmd.name}" != null)
     {
