@@ -113,12 +113,18 @@ private def logging(message, level) {
 }
 
 def parse(description) {
-	//log.debug "Parsing: ${description}"
+	//log.debug "Parse"
     def events = []
     def descMap = parseDescriptionAsMap(description)
     def body
-    //log.debug "descMap: ${descMap}"
+    def ipNew = getDataValue("ip")
+    def ipSettings = settings.ip
 
+    if (ipNew == "0.0.0.0" || ipNew != ipSettings) {
+		log.debug "IP address of device found ${ipNew}. Installing one from settings panel ${ipSettings}"
+        updateDataValue("ip", ipSettings)
+	}
+    
     if (!state.mac || state.mac != descMap["mac"]) {
 		log.debug "Mac address of device found ${descMap["mac"]}"
         updateDataValue("mac", descMap["mac"])
@@ -329,6 +335,12 @@ def generate_preferences(configuration_model)
                     title:"${it.@label}\n" + "${it.Help}",
                     displayDuringSetup: "${it.@displayDuringSetup}"
             break
+            case ["text"]:
+                input "${it.@index}", "texts",
+                    title:"${it.@label}\n" + "${it.Help}",
+                    defaultValue: "${it.@value}",
+                    displayDuringSetup: "${it.@displayDuringSetup}"
+            break
             case "decimal":
                input "${it.@index}", "decimal",
                     title:"${it.@label}\n" + "${it.Help}",
@@ -351,9 +363,11 @@ def generate_preferences(configuration_model)
 
 def update_current_properties(cmd)
 {
+	//log.debug "update_current_properties()"
+
     def currentProperties = state.currentProperties ?: [:]
     currentProperties."${cmd.name}" = cmd.value
-
+    
     if (settings."${cmd.name}" != null)
     {
         if (settings."${cmd.name}".toString() == cmd.value)
@@ -411,6 +425,10 @@ def configuration_model()
 {
 '''
 <configuration>
+<Value type="text" byteSize="1" index="ip" label="IP" min="" max="" value="0.0.0.0" setting_type="preference" fw="">
+<Help>
+</Help>
+</Value>
 <Value type="password" byteSize="1" index="password" label="Password" min="" max="" value="" setting_type="preference" fw="">
 <Help>
 </Help>
