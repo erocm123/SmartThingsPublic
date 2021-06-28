@@ -1,5 +1,6 @@
 /**
  *  Copyright 2016 Eric Maycock
+ *  Updated by Lee Charlton to allow the installation of a Sonoff Compound Child device handler
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -18,8 +19,8 @@
 
 definition(
     name: "Sonoff (Connect)",
-    namespace: "erocm123",
-    author: "Eric Maycock (erocm123)",
+    namespace: "LeeC77",
+    author: "Eric Maycock (erocm123) updates for a compound device Lee Charlton",
     description: "Service Manager for Sonoff switches",
     category: "Convenience",
     iconUrl:   "https://raw.githubusercontent.com/erocm123/SmartThingsPublic/master/smartapps/erocm123/sonoff-connect.src/sonoff-connect-icon.png",
@@ -271,7 +272,7 @@ def ssdpHandler(evt) {
     parsedEvent << ["hub":hub]
 
     def devices = getDevices()
-    
+    //log.debug ("devices = ${devices}")  //LC
     String ssdpUSN = parsedEvent.ssdpUSN.toString()
     
     if (devices."${ssdpUSN}") {
@@ -319,12 +320,19 @@ def getDevices() {
 void deviceDescriptionHandler(physicalgraph.device.HubResponse hubResponse) {
 	log.trace "description.xml response (application/xml)"
 	def body = hubResponse.xml
-    log.debug body?.device?.friendlyName?.text()
-	if (body?.device?.modelName?.text()?.startsWith("Sonoff") || body?.device?.modelName?.text()?.startsWith("Shelly")) {
+    
+    def temp =  body?.device?.friendlyName?.text()
+    log.debug "Friendly Name: ${temp}"
+    temp = body?.device?.modelName?.text()  // LC
+    log.debug "Model Name: ${temp}"
+    
+	if (body?.device?.modelName?.text().startsWith("Sonoff") || body?.device?.modelName?.text()?.startsWith("Shelly")) {
 		def devices = getDevices()
 		def device = devices.find {it?.key?.contains(body?.device?.UDN?.text())}
 		if (device) {
-			device.value << [name:body?.device?.friendlyName?.text() + " (" + convertHexToIP(hubResponse.ip) + ")", serialNumber:body?.device?.serialNumber?.text(), verified: true]
+			//device.value << [name:body?.device?.friendlyName?.text() + " (" + convertHexToIP(hubResponse.ip) + ")", serialNumber:body?.device?.serialNumber?.text(), verified: true]
+            //Line below uses model name to define DH
+            device.value << [name:body?.device?.modelName?.text() + " (" + convertHexToIP(hubResponse.ip) + ")", serialNumber:body?.device?.serialNumber?.text(), verified: true]
 		} else {
 			log.error "/description.xml returned a device that didn't exist"
 		}
@@ -347,7 +355,8 @@ def addDevices() {
         if (!d) {
             log.debug selectedDevice
             log.debug "Creating Sonoff Switch with dni: ${selectedDevice.value.mac}"
-
+            def temp = selectedDevice?.value?.name // LC
+			log.debug (" device to Add is ${temp}") // LC
             def deviceHandlerName
             if (selectedDevice?.value?.name?.startsWith("Sonoff TH"))
                 deviceHandlerName = "Sonoff TH Wifi Switch"
@@ -359,9 +368,11 @@ def addDevices() {
                 deviceHandlerName = "Sonoff 4CH Wifi Switch"
             else if (selectedDevice?.value?.name?.startsWith("Sonoff IFan02"))
                 deviceHandlerName = "Sonoff IFan02 Wifi Controller"
+            else if (selectedDevice?.value?.name?.startsWith("Sonoff Compound")) // LC new device
+                deviceHandlerName = "Sonoff Wifi Switch and Presence Sensor"  // LC New DH
             else if (selectedDevice?.value?.name?.startsWith("Sonoff S31"))
                 deviceHandlerName = "Sonoff S31 - Tasmota"
-            else if (selectedDevice?.value?.name?.startsWith("Sonoff S2"))
+			else if (selectedDevice?.value?.name?.startsWith("Sonoff S2"))
                 deviceHandlerName = "Sonoff S20 - Tasmota"
             else if (selectedDevice?.value?.name?.startsWith("Sonoff 4CH "))
                 deviceHandlerName = "Sonoff 4Ch - Tasmota"
@@ -373,7 +384,7 @@ def addDevices() {
                 deviceHandlerName = "Sonoff Wifi Switch"
             else 
                 deviceHandlerName = "Sonoff Wifi Switch"
-            def newDevice = addChildDevice("erocm123", deviceHandlerName, selectedDevice.value.mac, selectedDevice?.value.hub, [
+            def newDevice = addChildDevice("LeeC77", deviceHandlerName, selectedDevice.value.mac, selectedDevice?.value.hub, [
                 "label": selectedDevice?.value?.name ?: "Sonoff Wifi Switch",
                 "data": [
                     "mac": selectedDevice.value.mac,
